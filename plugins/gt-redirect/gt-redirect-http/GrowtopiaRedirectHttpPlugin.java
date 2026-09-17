@@ -2,11 +2,12 @@ package id.my.lyu.gtredirect.http;
 
 /**
  * Skeleton plugin: redirect growtopia1.com / growtopia2.com server_data.php
- * response (plain HTTP, no TLS) ke server target (misalnya KingPS via lyu.my.id).
+ * response (plain HTTP, no TLS) ke server target (KingPS via lyu.my.id).
  *
- * Belum di-wire ke PowerTunnel plugin SDK asli -- ini kerangka logika inti
- * (config loading + response rewriting) yang nanti tinggal disambungkan ke
- * HttpFiltersSourceAdapter / equivalent dari io.github.krlvm.powertunnel.sdk.
+ * Model jaringan: A record biasa (lyu.my.id -> IP playit terkini, DNS-only,
+ * bukan proxied Cloudflare) + port STATIS (dari tunnel game playit.gg).
+ * Gak ada fetch config HTTP terpisah, gak ada SRV record -- cuma DNS resolve
+ * biasa + port konstanta.
  *
  * TODO:
  * - Tambah dependency PowerTunnel SDK di build.gradle module ini
@@ -18,47 +19,42 @@ package id.my.lyu.gtredirect.http;
 public class GrowtopiaRedirectHttpPlugin {
 
     private final String targetDomain;
-    private final String configEndpoint;
-    private final int fallbackPort;
+    private final int staticPort;
 
-    public GrowtopiaRedirectHttpPlugin(String targetDomain, String configEndpoint, int fallbackPort) {
+    public GrowtopiaRedirectHttpPlugin(String targetDomain, int staticPort) {
         this.targetDomain = targetDomain;
-        this.configEndpoint = configEndpoint;
-        this.fallbackPort = fallbackPort;
+        this.staticPort = staticPort;
     }
 
     /**
-     * Resolve target_domain ke IP terkini, fetch port terbaru dari
-     * config_endpoint (mis. port playit.gg tunnel yang random tiap restart),
-     * lalu susun body server_data.php format Growtopia:
+     * Resolve target_domain (lyu.my.id) ke IP terkini via DNS biasa, susun
+     * body server_data.php format Growtopia:
      *
      *   server|<ip>
-     *   port|<port>
+     *   port|<static_port>
      *   type|1
+     *
+     * Port TIDAK pernah di-fetch dinamis -- ini konstanta karena tunnel game
+     * playit.gg yang dipakai punya port publik statis. Yang berubah cuma IP.
      *
      * @return teks body pengganti untuk dikirim balik ke client Growtopia
      */
     public String resolveTargetAndBuildResponse() {
         String ip = resolveIp(targetDomain);
-        int port = fetchCurrentPort(configEndpoint, fallbackPort);
 
         StringBuilder sb = new StringBuilder();
         sb.append("server|").append(ip).append("\n");
-        sb.append("port|").append(port).append("\n");
+        sb.append("port|").append(staticPort).append("\n");
         sb.append("type|1\n");
         return sb.toString();
     }
 
     private String resolveIp(String domain) {
         // TODO: java.net.InetAddress.getByName(domain).getHostAddress()
-        // Lakukan di background thread (bukan main thread Android).
+        // WAJIB di background thread (bukan main thread Android).
+        // Jangan cache terlalu lama -- resolve ulang tiap ada request masuk,
+        // karena IP inilah yang berubah-ubah (bukan port).
         throw new UnsupportedOperationException("TODO: implement DNS resolve");
-    }
-
-    private int fetchCurrentPort(String endpoint, int fallback) {
-        // TODO: HTTP GET ke endpoint, parse JSON { "port": 43210 }
-        // Kalau fetch gagal / timeout, pakai fallback (fallbackPort).
-        throw new UnsupportedOperationException("TODO: implement config fetch");
     }
 
     /**
