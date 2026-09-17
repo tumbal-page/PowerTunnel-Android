@@ -1,0 +1,6 @@
+{
+  "target_domain": "lyu.my.id",
+  "override_domains": ["growtopia1.com", "growtopia2.com"],
+  "config_endpoint": "https://lyu.my.id/gt-config.json",
+  "fallback_port": 17091
+}
