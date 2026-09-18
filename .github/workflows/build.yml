@@ -15,27 +15,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # AGP 7.0.3 + Gradle 7.0.2 butuh JDK 11 (bukan 17/21)
+      # AGP 7.0.3 + Gradle 7.0.2 cuma jalan di JDK 11 (JDK 17+ bikin gradle daemon crash)
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      # Native build (CMake) di app/build.gradle butuh NDK 22.1.7171670
-      - name: Install NDK & CMake
+      # Runner ubuntu-latest sudah ada Android SDK preinstalled (ANDROID_HOME
+      # sudah di-set). Sengaja TIDAK pakai android-actions/setup-android@v3 di
+      # sini karena action itu memaksa download cmdline-tools versi terbaru
+      # yang butuh JDK 17 buat jalanin sdkmanager-nya sendiri -- bentrok sama
+      # JDK 11 yang dibutuhin proses build Gradle di step berikutnya.
+      - name: Accept licenses & install NDK/CMake/platform (pakai SDK preinstalled)
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "ndk;22.1.7171670" "cmake;3.10.2.4988404" "platforms;android-30" "build-tools;30.0.3"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-30" \
+            "build-tools;30.0.3" \
+            "ndk;22.1.7171670" \
+            "cmake;3.10.2.4988404"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/22.1.7171670
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -58,13 +66,14 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK & CMake
+      - name: Accept licenses & install NDK/CMake/platform (pakai SDK preinstalled)
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "ndk;22.1.7171670" "cmake;3.10.2.4988404" "platforms;android-30" "build-tools;30.0.3"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-30" \
+            "build-tools;30.0.3" \
+            "ndk;22.1.7171670" \
+            "cmake;3.10.2.4988404"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -74,6 +83,8 @@ jobs:
       # atau tambahin signingConfig + secrets keystore di repo settings.
       - name: Build release APK (unsigned)
         run: ./gradlew assembleRelease --stacktrace
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/22.1.7171670
 
       - name: Upload unsigned release APK
         uses: actions/upload-artifact@v4
